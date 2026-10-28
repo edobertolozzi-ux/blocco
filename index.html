@@ -1,0 +1,1563 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090C12">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Planner a blocchi: settimana, categorie e cose da fare.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blocco">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Geist:wght@400..700&display=swap">
+<title>Blocco</title>
+<style>
+:root{
+  --bg:#090C12; --surface:#10141D; --surface-2:#171C27; --surface-3:#212838;
+  --line:rgba(255,255,255,.065); --line-strong:rgba(255,255,255,.11);
+  --text:#EEF0F6; --muted:#8B93A7; --faint:#5D6579;
+  --now:#FF4D5E; --focus:#9DB6FF;
+  --hour:56px; --gutter:48px;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  --peek:calc(124px + var(--safe-b));
+  --font-ui:'Geist',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Bricolage Grotesque','Geist',system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{overflow:hidden;overscroll-behavior:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+body.is-dragging,body.is-dragging *{cursor:grabbing!important;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+svg{display:block}
+
+.app{position:relative;height:100%;display:grid;grid-template-columns:minmax(0,1fr)}
+.cal{display:flex;flex-direction:column;min-height:0;height:100%;padding-bottom:var(--peek)}
+
+/* Header */
+.top{padding:calc(var(--safe-t) + 12px) 16px 10px;display:flex;flex-direction:column;gap:12px}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.date-title{display:flex;align-items:center;gap:12px;min-width:0}
+.big-num{font-family:var(--font-display);font-size:48px;line-height:.86;font-weight:600;letter-spacing:-.045em;font-variant-numeric:tabular-nums;font-variation-settings:'opsz' 96}
+.date-meta{display:flex;flex-direction:column;gap:3px;min-width:0}
+.date-meta b{font-size:17px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+.date-meta span{font-size:13px;color:var(--muted);white-space:nowrap}
+.top-actions{display:flex;align-items:center;gap:6px;flex:none}
+.icon-btn{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--muted);background:var(--surface);flex:none;transition:color .15s,background .15s}
+.icon-btn:hover{color:var(--text);background:var(--surface-2)}
+.icon-btn svg{width:18px;height:18px}
+.pill-btn{height:38px;padding:0 14px;border-radius:12px;background:var(--surface);font-size:14px;font-weight:600;transition:opacity .2s}
+.pill-btn.is-hidden{opacity:0;pointer-events:none}
+
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;touch-action:pan-y}
+.wd{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 0 6px;border-radius:14px;transition:background .15s}
+.wd small{font-size:11px;color:var(--faint);font-weight:500}
+.wd b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.wd .dots{display:flex;gap:3px;height:5px}
+.wd .dots i{width:5px;height:5px;border-radius:50%;background:var(--c)}
+.wd.is-today b{color:var(--now)}
+.wd.in-view{background:var(--surface)}
+.wd.is-sel{background:var(--text);color:var(--bg)}
+.wd.is-sel small{color:rgba(9,12,18,.5)}
+.wd.is-sel.is-today b{color:var(--bg)}
+
+.ctrl-row{display:flex;align-items:center;gap:14px}
+.seg{display:inline-flex;background:var(--surface);border-radius:12px;padding:3px;flex:none}
+.seg button{height:30px;padding:0 11px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);transition:background .15s,color .15s}
+.seg button[aria-pressed="true"]{background:var(--surface-3);color:var(--text)}
+.band{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;text-align:left;padding:6px 4px;margin:-6px -4px;border-radius:10px}
+.band:hover .band-label{color:var(--text)}
+.band-bar{height:6px;border-radius:99px;background:var(--surface-2);display:flex;gap:2px;overflow:hidden}
+.band-bar i{height:100%;background:var(--c);border-radius:99px;min-width:4px}
+.band-label{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:2px}
+.band-label svg{width:13px;height:13px;flex:none;opacity:.7}
+
+.palette{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px 2px;align-items:center}
+.palette::-webkit-scrollbar{display:none}
+.pc-lbl{font-size:12px;color:var(--faint);flex:none;padding-right:2px}
+.pc{flex:none;height:32px;padding:0 12px 0 10px;border-radius:99px;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap;background:color-mix(in srgb,var(--c) 11%,var(--surface));color:color-mix(in srgb,var(--c) 32%,#fff);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 26%,transparent);transition:background .15s,box-shadow .15s,color .15s}
+.pc .em{font-size:14px}
+.pc.is-armed{background:var(--c);color:#0A0D14;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent)}
+.pc-manage{background:var(--surface);color:var(--muted);box-shadow:none}
+
+/* Grid */
+.grid-wrap{flex:1;min-height:0;position:relative;border-top:1px solid var(--line)}
+.grid-scroll{height:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:thin;scrollbar-color:var(--surface-3) transparent;scrollbar-gutter:stable}
+.grid-scroll.drag-lock{overflow:hidden}
+.heads{position:sticky;top:0;z-index:8;display:grid;grid-template-columns:var(--gutter) repeat(var(--n),minmax(0,1fr));background:rgba(9,12,18,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.head{display:flex;flex-direction:column;align-items:center;padding:6px 0 7px;gap:1px;border-radius:10px}
+.head span{font-size:11px;color:var(--faint)}
+.head b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.head.is-today b{color:var(--now)}
+.body{display:grid;grid-template-columns:var(--gutter) repeat(var(--n),minmax(0,1fr));padding:12px 0 28px;position:relative;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.gutter{position:relative}
+.hl{position:absolute;right:9px;transform:translateY(-50%);font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;pointer-events:none}
+.col{position:relative;border-left:1px solid var(--line);
+  background-image:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px calc(var(--hour) / 2),rgba(255,255,255,.028) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px),transparent calc(var(--hour) / 2 + 1px) var(--hour))}
+.col.is-today{background-color:rgba(255,255,255,.018)}
+.app.is-armed .col{touch-action:none;cursor:crosshair}
+.app.is-pasting .col,.app.is-pasting .ev{cursor:copy}
+
+.ev{position:absolute;border-radius:10px;padding:5px 7px 6px 10px;overflow:hidden;font-size:12.5px;line-height:1.25;
+  background:color-mix(in srgb,var(--c) 20%,var(--surface));color:color-mix(in srgb,var(--c) 22%,#fff);
+  box-shadow:inset 3px 0 0 var(--c);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;z-index:2}
+.ev-title{font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:normal;word-break:normal}
+.ev-time{font-size:11px;opacity:.72;font-variant-numeric:tabular-nums;margin-top:1px;white-space:nowrap}
+.ev.is-short{display:flex;gap:7px;align-items:center;padding-top:1px;padding-bottom:1px}
+.ev.is-short .ev-title{-webkit-line-clamp:1;flex:0 1 auto}
+.ev.is-short .ev-time{margin:0;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ev.is-tiny{padding:0 5px 0 8px;font-size:10.5px;border-radius:6px;align-items:center}
+.ev.is-tiny .ev-time{display:none}
+.ev.is-tiny .ev-handle{height:8px}
+.ev.is-done{opacity:.42}
+.ev.is-done .ev-title{text-decoration:line-through}
+.ev.is-rec .ev-title::after{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45;margin-left:5px;vertical-align:middle}
+.ev-handle{position:absolute;left:0;right:0;bottom:0;height:14px;cursor:ns-resize;touch-action:none}
+.ev-handle::after{content:'';position:absolute;left:50%;bottom:4px;width:18px;height:3px;border-radius:2px;background:currentColor;opacity:0;transform:translateX(-50%);transition:opacity .15s}
+.ev:hover .ev-handle::after{opacity:.5}
+@media (hover:none){.ev-handle::after{opacity:.26}}
+.ev.is-ghosted{opacity:.22}
+.ev.is-preview{z-index:20;pointer-events:none;box-shadow:inset 3px 0 0 var(--c),0 14px 30px rgba(0,0,0,.5),0 0 0 1.5px var(--c)}
+.ev.is-sel-preview{--c:#9DB6FF!important;background:rgba(157,182,255,.16)}
+.body.is-narrow .ev{padding:4px 4px 4px 6px;font-size:11px;border-radius:7px}
+.body.is-narrow .ev-time{display:none}
+.body.is-narrow .ev-title{-webkit-line-clamp:4}
+.body.is-narrow .ev.is-short .ev-title{-webkit-line-clamp:1}
+.zoom{position:absolute;left:5px;bottom:14px;z-index:9;display:flex;flex-direction:column;background:var(--surface-2);border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.4),inset 0 0 0 1px var(--line-strong);overflow:hidden}
+.zoom button{width:38px;height:38px;display:grid;place-items:center;color:var(--muted)}
+.zoom button:hover{color:var(--text);background:var(--surface-3)}
+.zoom button+button{border-top:1px solid var(--line-strong)}
+.zoom svg{width:16px;height:16px}
+.app.has-bar .zoom{bottom:88px}
+.now{position:absolute;left:-1px;right:0;height:2px;background:var(--now);z-index:6;pointer-events:none}
+.now::before{content:'';position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--now)}
+
+/* To-do panel */
+.todo{position:fixed;left:0;right:0;bottom:0;z-index:30;height:min(74dvh,660px);background:var(--surface);border-radius:24px 24px 0 0;
+  box-shadow:0 -1px 0 var(--line-strong),0 -24px 48px rgba(0,0,0,.4);transform:translateY(calc(100% - var(--peek)));transition:transform .34s var(--ease);
+  display:flex;flex-direction:column;padding-bottom:var(--safe-b)}
+.todo.open{transform:none}
+.todo-grab{height:22px;display:grid;place-items:center;flex:none;cursor:pointer}
+.todo-grab::after{content:'';width:38px;height:4px;border-radius:2px;background:var(--surface-3)}
+.todo-head{display:flex;align-items:center;gap:10px;padding:0 16px 12px;flex:none;cursor:pointer}
+.todo-head h2{font-family:var(--font-display);font-size:21px;font-weight:600;letter-spacing:-.02em;margin:0}
+.count{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:0 16px 14px;scrollbar-width:none;flex:none;touch-action:pan-x}
+.chips::-webkit-scrollbar{display:none}
+.todo.open .chips{display:none}
+.chip{flex:none;max-width:220px;height:46px;padding:0 14px 0 12px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:500;
+  box-shadow:inset 0 0 0 1px var(--line-strong);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip em{font-style:normal;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;flex:none}
+.chips-empty{font-size:13px;color:var(--muted);margin:0;height:46px;display:flex;align-items:center}
+.todo-list{flex:1;overflow-y:auto;padding:0 16px 24px;display:none;overscroll-behavior:contain}
+.todo.open .todo-list{display:block}
+.quick{margin:2px 0 6px}
+.group-t{font-size:12.5px;color:var(--muted);margin:18px 2px 8px;font-weight:500;display:flex;align-items:center;justify-content:space-between}
+.group-t button{font-size:12.5px;color:var(--focus);font-weight:500;padding:4px}
+.td{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;background:var(--surface-2);margin-bottom:6px;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:grab;transition:background .15s}
+.td:hover{background:color-mix(in srgb,var(--surface-2) 70%,var(--surface-3))}
+.td-check{width:24px;height:24px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--c);flex:none;display:grid;place-items:center;color:#0A0D14;cursor:pointer}
+.td-check svg{width:14px;height:14px}
+.td.is-done .td-check{background:var(--c)}
+.td-body{flex:1;min-width:0}
+.td-title{font-size:14.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.td-meta{font-size:12px;color:var(--muted);display:flex;gap:10px;margin-top:3px;align-items:center;flex-wrap:wrap}
+.td-cat{display:inline-flex;align-items:center;gap:5px}
+.td-cat i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.td-when{color:color-mix(in srgb,var(--c) 45%,#fff);font-variant-numeric:tabular-nums}
+.td.is-done{cursor:pointer}
+.td.is-done .td-title{text-decoration:line-through;color:var(--muted)}
+.td-grip{color:var(--faint);flex:none}
+.td-grip svg{width:16px;height:16px}
+.empty{padding:22px 4px;color:var(--muted);font-size:13.5px;line-height:1.5}
+
+/* Floating */
+.fab{position:fixed;right:16px;bottom:calc(var(--peek) + 16px);z-index:25;width:56px;height:56px;border-radius:18px;background:var(--text);color:var(--bg);display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.5);transition:transform .2s var(--ease)}
+.fab:active{transform:scale(.94)}
+.fab svg{width:24px;height:24px}
+.app.has-bar .fab{display:none}
+.armbar{position:fixed;left:16px;right:16px;bottom:calc(var(--peek) + 16px);z-index:26;min-height:56px;border-radius:18px;background:var(--surface-3);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 16px;font-size:13.5px;line-height:1.35;
+  box-shadow:0 12px 30px rgba(0,0,0,.5),inset 0 0 0 1px color-mix(in srgb,var(--c) 40%,transparent);transform:translateY(16px);opacity:0;pointer-events:none;transition:transform .25s var(--ease),opacity .2s}
+.app.has-bar .armbar{transform:none;opacity:1;pointer-events:auto}
+.armbar b{color:var(--c);font-weight:600}
+.armbar button{margin-left:auto;flex:none;height:40px;padding:0 16px;border-radius:12px;background:var(--c);color:#0A0D14;font-weight:600}
+.ghost{position:fixed;left:0;top:0;z-index:100;pointer-events:none;display:none;align-items:center;gap:8px;height:42px;padding:0 14px 0 12px;margin:-70px 0 0 -48px;border-radius:14px;background:var(--surface-3);font-size:13.5px;font-weight:500;box-shadow:0 16px 36px rgba(0,0,0,.55);white-space:nowrap}
+.ghost.show{display:flex}
+.ghost i{width:8px;height:8px;border-radius:50%}
+.ghost em{font-style:normal;color:var(--muted);font-size:12px}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--peek) + 86px);z-index:90;transform:translate(-50%,16px);opacity:0;pointer-events:none;background:var(--surface-3);border-radius:14px;padding:6px 6px 6px 16px;min-height:46px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 14px 32px rgba(0,0,0,.55);transition:opacity .2s,transform .25s var(--ease);max-width:calc(100vw - 32px);width:max-content}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast span{padding-right:6px}
+.toast button{height:34px;padding:0 12px;border-radius:10px;font-weight:600;color:var(--focus);flex:none}
+
+/* Sheet */
+.backdrop{position:fixed;inset:0;z-index:50;background:rgba(3,5,9,.58);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .25s}
+.backdrop.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:92dvh;overflow-y:auto;background:var(--surface);border-radius:26px 26px 0 0;padding:8px 18px calc(20px + var(--safe-b));
+  transform:translateY(105%);transition:transform .34s var(--ease);overscroll-behavior:contain;box-shadow:0 -1px 0 var(--line-strong)}
+.sheet.open{transform:none}
+.sheet-grab{width:38px;height:4px;border-radius:2px;background:var(--surface-3);margin:0 auto 6px}
+.sh-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 16px}
+.sh-head h3{font-family:var(--font-display);font-size:23px;font-weight:600;letter-spacing:-.02em;margin:0}
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin-bottom:14px}
+.cat-opt{min-height:46px;border-radius:14px;padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-strong);text-align:left;line-height:1.2;transition:background .15s,box-shadow .15s}
+.cat-opt .em{font-size:17px;flex:none}
+.cat-opt[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,var(--surface-2));box-shadow:inset 0 0 0 2px var(--c)}
+.in{width:100%;height:48px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line-strong);padding:0 14px;font-size:16px;outline:none;transition:border-color .15s}
+.in:focus{border-color:#6F7EA6}
+.in::placeholder{color:var(--faint)}
+textarea.in{height:auto;min-height:64px;padding:12px 14px;resize:vertical;line-height:1.4;display:block}
+select.in{-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 21px,calc(100% - 13px) 21px;background-size:5px 5px;background-repeat:no-repeat}
+.row3{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:8px;margin:12px 0 10px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f{display:flex;flex-direction:column;gap:6px;min-width:0}
+.f>span,.lbl{font-size:12.5px;color:var(--muted);padding-left:4px}
+.lbl{display:block;margin:4px 0 8px}
+.in[type=date],.in[type=time]{padding:0 10px;-webkit-appearance:none;appearance:none;min-width:0;text-align:left;display:flex;align-items:center}
+.in::-webkit-date-and-time-value{text-align:left}
+.in::-webkit-calendar-picker-indicator{filter:invert(.7)}
+.mini{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 12px}
+.mini button{height:34px;padding:0 12px;border-radius:10px;background:var(--surface-2);font-size:13px;font-weight:500;box-shadow:inset 0 0 0 1px var(--line-strong);font-variant-numeric:tabular-nums}
+.mini button[aria-pressed="true"]{background:var(--text);color:var(--bg);box-shadow:none}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px;font-size:15px}
+.switch{position:relative;width:50px;height:30px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;border-radius:99px;background:var(--surface-3);transition:background .2s}
+.switch span::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s var(--ease)}
+.switch input:checked+span{background:#2ED47A}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:2px 0 12px}
+.days button{height:42px;border-radius:12px;background:var(--surface-2);font-weight:600;font-size:14px;box-shadow:inset 0 0 0 1px var(--line-strong)}
+.days button[aria-pressed="true"]{background:var(--text);color:var(--bg);box-shadow:none}
+.actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+.actions-col{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.btn{height:50px;border-radius:14px;padding:0 18px;font-weight:600;font-size:15px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:background .15s}
+.btn:hover{background:var(--surface-3)}
+.btn-primary{background:var(--text);color:var(--bg);flex:1}
+.btn-primary:hover{background:#fff}
+.btn-danger{color:#FF7D7D}
+.btn-ghost{background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong)}
+.btn.sm{height:38px;padding:0 14px;font-size:13.5px;border-radius:11px}
+.btn.full{width:100%}
+.note{font-size:13.5px;color:var(--muted);line-height:1.5;margin:6px 2px}
+.copy-row{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.dup-box{padding:12px;border-radius:16px;background:var(--surface-2);margin:0 0 12px;display:flex;flex-direction:column;gap:10px}
+.dup-box .days{margin:0}
+.dup-days button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:50px;background:var(--surface)}
+.dup-days button small{font-size:11px;font-weight:500;opacity:.7;font-variant-numeric:tabular-nums}
+.dup-days button:disabled{opacity:.3;cursor:default}
+.dup-box .row2 .btn{width:100%}
+.btn:disabled{opacity:.4;cursor:default}
+.day-list{display:flex;flex-direction:column;gap:6px;margin:0 0 6px}
+.day-it{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--surface-2);text-align:left;transition:background .15s}
+.day-it:hover{background:var(--surface-3)}
+.day-it i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+.day-it span{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;flex:none;min-width:92px}
+.day-it b{font-weight:500;font-size:14.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linked{display:flex;align-items:center;gap:8px;padding:12px 12px 12px 14px;border-radius:14px;background:var(--surface-2);margin:4px 0 6px}
+.linked div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.linked span{font-size:12px;color:var(--muted)}
+.linked b{font-size:14.5px;font-weight:600}
+.set-sec{padding:16px 0;border-top:1px solid var(--line)}
+.set-sec:first-of-type{border-top:0;padding-top:0}
+.set-sec h4{font-size:15px;font-weight:600;margin:0 0 10px}
+.cat-row{display:grid;grid-template-columns:44px 56px 1fr 38px;gap:8px;align-items:center;margin-bottom:8px}
+.swatch{position:relative;width:44px;height:44px;border-radius:14px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);overflow:hidden;cursor:pointer}
+.swatch input{position:absolute;inset:-8px;width:60px;height:60px;opacity:0;cursor:pointer;border:0;padding:0}
+.cat-row .in{height:44px}
+.em-in{text-align:center;padding:0 6px}
+.welcome .tips{list-style:none;padding:0;margin:16px 0;display:flex;flex-direction:column;gap:10px}
+.welcome .tips li{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.45;color:#C9CEDB}
+.welcome .tips li i{flex:none;width:8px;height:8px;border-radius:3px;margin-top:7px;background:var(--c)}
+.welcome .tips b{color:var(--text);font-weight:600}
+.install{padding:14px;border-radius:14px;background:var(--surface-2);font-size:13.5px;line-height:1.5;color:#C9CEDB}
+.mark{display:flex;gap:5px;align-items:flex-end;height:34px;margin:6px 0 14px}
+.mark i{display:block;width:12px;border-radius:4px;background:var(--c)}
+
+@media (min-width:720px){
+  .sheet{left:50%;right:auto;bottom:auto;top:50%;width:540px;max-height:88dvh;border-radius:26px;padding:12px 24px 24px;transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;transition:transform .28s var(--ease),opacity .2s;box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1px var(--line-strong)}
+  .sheet.open{transform:translate(-50%,-50%);opacity:1;pointer-events:auto}
+  .sheet-grab{display:none}
+}
+@media (min-width:920px){
+  .app{grid-template-columns:minmax(0,1fr) 360px}
+  .cal{padding-bottom:0}
+  .top{padding:calc(var(--safe-t) + 18px) 24px 12px}
+  .palette{margin:0 -24px;padding:0 24px 2px}
+  .todo{position:relative;transform:none;height:100%;border-radius:0;box-shadow:none;border-left:1px solid var(--line);padding-top:calc(var(--safe-t) + 22px);z-index:1}
+  .todo-grab,.chips{display:none!important}
+  .todo-list{display:block}
+  .todo-head{cursor:default;padding:0 20px 14px}
+  .todo-list{padding:0 20px 24px}
+  .fab{right:calc(360px + 24px);bottom:24px}
+  .zoom{left:9px;bottom:18px}
+  .armbar{left:24px;right:auto;bottom:24px;width:min(460px,calc(100vw - 360px - 48px))}
+  .toast{left:calc((100vw - 360px) / 2);bottom:96px}
+  :root{--gutter:56px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <main class="cal">
+    <header class="top">
+      <div class="top-row">
+        <div class="date-title" aria-live="polite">
+          <span class="big-num" id="bigNum"></span>
+          <span class="date-meta"><b id="dowLabel"></b><span id="monthLabel"></span></span>
+        </div>
+        <div class="top-actions">
+          <button class="pill-btn" id="goToday">Oggi</button>
+          <button class="icon-btn" id="prevBtn" aria-label="Indietro"></button>
+          <button class="icon-btn" id="nextBtn" aria-label="Avanti"></button>
+          <button class="icon-btn" id="settingsBtn" aria-label="Impostazioni"></button>
+        </div>
+      </div>
+      <nav class="week" id="week" aria-label="Settimana"></nav>
+      <div class="ctrl-row">
+        <div class="seg" id="viewSeg" role="group" aria-label="Vista">
+          <button data-view="day">Giorno</button><button data-view="3day">3 giorni</button><button data-view="week">Settimana</button>
+        </div>
+        <button class="band" id="band" aria-label="Giornata: copia o svuota"></button>
+      </div>
+      <div class="palette" id="palette"></div>
+    </header>
+    <div class="grid-wrap">
+      <div class="grid-scroll" id="gridScroll">
+        <div class="heads" id="heads"></div>
+        <div class="body" id="gridBody"></div>
+      </div>
+      <div class="zoom" role="group" aria-label="Zoom delle ore"><button id="zoomIn" aria-label="Ingrandisci le ore"></button><button id="zoomOut" aria-label="Rimpicciolisci le ore"></button></div>
+    </div>
+  </main>
+  <aside class="todo" id="todo" aria-label="Cose da fare">
+    <div class="todo-grab" id="todoGrab"></div>
+    <div class="todo-head" id="todoHead">
+      <h2>Da fare</h2><span class="count" id="todoCount"></span><span class="sp"></span>
+      <button class="icon-btn" id="addTodo" aria-label="Nuova cosa da fare"></button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="todo-list" id="todoList"></div>
+  </aside>
+  <button class="fab" id="fab" aria-label="Nuovo blocco"></button>
+  <div class="armbar" id="armbar" role="status"></div>
+</div>
+<div class="backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" inert></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="ghost" id="ghost"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const KEY = 'blocco.v1';
+const PREVIEW = !!window.__BLOCCO_PREVIEW__;
+const SNAP = 15, ZMIN = 16, ZMAX = 96;
+const DEFAULT_ZOOM = { day: 56, '3day': 48, week: 30 };
+const DOW_SHORT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+const DOW_LETTER = ['L','M','M','G','V','S','D'];
+const DOW_LONG = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+const MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+const DEFAULT_CATS = [
+  {id:'scuola', name:'Scuola', emoji:'🏫', color:'#5B8CFF'},
+  {id:'studio-scuola', name:'Studio scuola', emoji:'📚', color:'#A08BFF'},
+  {id:'studio-business', name:'Studio business', emoji:'💼', color:'#F2B33D'},
+  {id:'allenamento', name:'Allenamento', emoji:'🏋️', color:'#FF6A55'},
+  {id:'calcio', name:'Calcio', emoji:'⚽', color:'#2ED47A'},
+  {id:'personale', name:'Personale', emoji:'🎧', color:'#FF78C4'},
+  {id:'altro', name:'Altro', emoji:'📌', color:'#9AA3B5'}
+];
+const sv = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const ICON = {
+  left: sv('<path d="M15 18l-6-6 6-6"/>'),
+  right: sv('<path d="M9 18l6-6-6-6"/>'),
+  settings: sv('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+  plus: sv('<path d="M12 5v14M5 12h14"/>'),
+  minus: sv('<path d="M5 12h14"/>'),
+  close: sv('<path d="M6 6l12 12M18 6L6 18"/>'),
+  check: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  grip: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>'
+};
+
+/* ---------- utils ---------- */
+const pad = n => String(n).padStart(2, '0');
+const toKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (k, n) => { const d = fromKey(k); d.setDate(d.getDate() + n); return toKey(d); };
+const dow = k => fromKey(k).getDay() || 7;
+const mondayOf = k => addDays(k, 1 - dow(k));
+const todayKey = () => toKey(new Date());
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const snap = m => Math.round(m / SNAP) * SNAP;
+const floorTo = (m, s) => Math.floor(m / s) * s;
+const ceilTo = (m, s) => Math.ceil(m / s) * s;
+const fmtTime = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+const timeVal = m => m >= 1440 ? '00:00' : fmtTime(m);
+const parseTime = v => { const m = /^(\d{1,2}):(\d{2})/.exec(v || ''); return m ? (+m[1]) * 60 + (+m[2]) : NaN; };
+const fmtDur = m => { const h = Math.floor(m / 60), r = m % 60; return h && r ? `${h}h ${r}m` : h ? `${h}h` : `${r}m`; };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+const dayLabel = k => `${DOW_SHORT[dow(k) - 1]} ${fromKey(k).getDate()}`;
+const isDesktop = () => matchMedia('(min-width: 920px)').matches;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const haptic = () => { try { navigator.vibrate && navigator.vibrate(8); } catch (e) {} };
+
+/* ---------- state ---------- */
+function defaultState() {
+  return { v: 1, cats: DEFAULT_CATS.map(c => ({...c})), events: [], series: [], todos: [],
+    prefs: { view: window.innerWidth >= 920 ? 'week' : 'day', dayStart: 6, dayEnd: 24 }, seenWelcome: false };
+}
+function migrate(s) {
+  const d = defaultState();
+  return { ...d, ...s, prefs: { ...d.prefs, ...(s.prefs || {}) },
+    cats: Array.isArray(s.cats) && s.cats.length ? s.cats : d.cats,
+    events: Array.isArray(s.events) ? s.events : [], series: Array.isArray(s.series) ? s.series : [],
+    todos: Array.isArray(s.todos) ? s.todos : [] };
+}
+function load() {
+  try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {}
+  return defaultState();
+}
+let S = load();
+let undoSnap = null;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { toast('Non riesco a salvare: esporta un backup dalle impostazioni'); }
+}
+function snapshot() { undoSnap = JSON.stringify(S); }
+function commit(msg, undoable) {
+  save(); render();
+  if (msg) toast(msg, undoable && undoSnap ? { label: 'Annulla', fn: undo } : null);
+}
+function undo() { if (!undoSnap) return; S = JSON.parse(undoSnap); undoSnap = null; save(); render(); toast('Annullato'); }
+
+const U = { sel: todayKey(), view: S.prefs.view || 'day', armed: null, paste: null, clip: null, pinchEndAt: 0, todoOpen: false, lastScroll: 0, dragEndAt: 0, lastCat: null, lastTodoCat: null, today: todayKey() };
+let drag = null, raf = 0, resizeT = 0;
+
+const cat = id => S.cats.find(c => c.id === id) || S.cats.find(c => c.id === 'altro') || { id: 'altro', name: 'Altro', emoji: '📌', color: '#9AA3B5' };
+const titleOf = it => it.title || cat(it.cat).name;
+const newEvent = o => ({ id: uid(), title: o.title || '', cat: o.cat, date: o.date, start: o.start, end: o.end, notes: o.notes || '', todoId: o.todoId || null, done: false });
+const linkedEvent = t => t && t.eventId ? S.events.find(e => e.id === t.eventId) || null : null;
+
+function seriesOcc(s, k) {
+  return { id: s.id + '@' + k, seriesId: s.id, kind: 'series', date: k, title: s.title, cat: s.cat, start: s.start, end: s.end, notes: s.notes };
+}
+function occurrencesOn(k) {
+  const out = [];
+  for (const e of S.events) if (e.date === k) out.push({ ...e, kind: 'event' });
+  const wd = dow(k);
+  for (const s of S.series) {
+    if (!s.days.includes(wd) || k < s.from || (s.until && k > s.until) || (s.skip && s.skip.includes(k))) continue;
+    out.push(seriesOcc(s, k));
+  }
+  return out.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+}
+function findOcc(id) {
+  if (id.includes('@')) {
+    const [sid, k] = id.split('@'); const s = S.series.find(x => x.id === sid);
+    return s ? seriesOcc(s, k) : null;
+  }
+  const e = S.events.find(x => x.id === id);
+  return e ? { ...e, kind: 'event' } : null;
+}
+function isDone(it) {
+  if (it.kind !== 'event') return false;
+  if (it.todoId) { const t = S.todos.find(x => x.id === it.todoId); return !!(t && t.done); }
+  return !!it.done;
+}
+function layout(items) {
+  const res = []; let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    const ends = [];
+    for (const it of cluster) {
+      let c = ends.findIndex(e => e <= it.start);
+      if (c === -1) { c = ends.length; ends.push(it.end); } else ends[c] = it.end;
+      it._col = c;
+    }
+    for (const it of cluster) { it._cols = ends.length; res.push(it); }
+    cluster = []; clusterEnd = -1;
+  };
+  for (const it of items) {
+    if (cluster.length && it.start >= clusterEnd) flush();
+    cluster.push(it); clusterEnd = Math.max(clusterEnd, it.end);
+  }
+  if (cluster.length) flush();
+  return res;
+}
+function visibleDays() {
+  if (U.view === 'week') { const m = mondayOf(U.sel); return [0,1,2,3,4,5,6].map(i => addDays(m, i)); }
+  if (U.view === '3day') return [0,1,2].map(i => addDays(U.sel, i));
+  return [U.sel];
+}
+function hourH() { const z = S.prefs.zoom; return (z && z[U.view]) || DEFAULT_ZOOM[U.view] || 56; }
+const minToY = m => (m - S.prefs.dayStart * 60) / 60 * hourH();
+const minAt = (col, y) => S.prefs.dayStart * 60 + (y - col.getBoundingClientRect().top) / hourH() * 60;
+const weekOf = k => { const m = mondayOf(k); return [0,1,2,3,4,5,6].map(i => addDays(m, i)); };
+const dayStartMin = () => S.prefs.dayStart * 60;
+const dayEndMin = () => S.prefs.dayEnd * 60;
+function findFreeSlot(date, dur) {
+  const occ = occurrencesOn(date), lo = dayStartMin(), hi = dayEndMin();
+  let m = date === todayKey() ? Math.max(ceilTo(nowMin(), 30), lo) : Math.max(lo, 9 * 60);
+  for (; m + dur <= hi; m += SNAP) if (!occ.some(o => o.start < m + dur && o.end > m)) return m;
+  return clamp(9 * 60, lo, hi - dur);
+}
+
+/* ---------- elements ---------- */
+const el = {
+  app: $('#app'), bigNum: $('#bigNum'), dowLabel: $('#dowLabel'), monthLabel: $('#monthLabel'), goToday: $('#goToday'),
+  week: $('#week'), band: $('#band'), seg: $('#viewSeg'), palette: $('#palette'),
+  scroll: $('#gridScroll'), heads: $('#heads'), body: $('#gridBody'),
+  todo: $('#todo'), todoHead: $('#todoHead'), todoGrab: $('#todoGrab'), chips: $('#chips'), list: $('#todoList'), count: $('#todoCount'),
+  fab: $('#fab'), armbar: $('#armbar'), sheet: $('#sheet'), backdrop: $('#backdrop'), toast: $('#toast'), ghost: $('#ghost')
+};
+$('#prevBtn').innerHTML = ICON.left; $('#nextBtn').innerHTML = ICON.right;
+$('#settingsBtn').innerHTML = ICON.settings; $('#zoomIn').innerHTML = ICON.plus; $('#zoomOut').innerHTML = ICON.minus; $('#addTodo').innerHTML = ICON.plus; el.fab.innerHTML = ICON.plus;
+
+/* ---------- render ---------- */
+function render() {
+  renderHeader(); renderBand(); renderPalette(); renderGrid(); renderTodos();
+}
+function renderHeader() {
+  const d = fromKey(U.sel), today = todayKey(), days = visibleDays();
+  el.bigNum.textContent = d.getDate();
+  el.dowLabel.textContent = U.sel === today ? `Oggi, ${DOW_LONG[dow(U.sel) - 1].toLowerCase()}` : DOW_LONG[dow(U.sel) - 1];
+  el.monthLabel.textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  el.goToday.classList.toggle('is-hidden', days.includes(today) && U.sel === today);
+  const mon = mondayOf(U.sel);
+  let h = '';
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(mon, i);
+    const cats = [...new Set(occurrencesOn(k).map(o => o.cat))].slice(0, 3);
+    const cls = ['wd', k === U.sel ? 'is-sel' : '', k === today ? 'is-today' : '', days.length > 1 && days.includes(k) && k !== U.sel ? 'in-view' : ''].join(' ');
+    h += `<button class="${cls}" data-day="${k}" aria-label="${DOW_LONG[i]} ${fromKey(k).getDate()}"><small>${DOW_LETTER[i]}</small><b>${fromKey(k).getDate()}</b><span class="dots">${cats.map(c => `<i style="--c:${cat(c).color}"></i>`).join('')}</span></button>`;
+  }
+  el.week.innerHTML = h;
+  $$('button', el.seg).forEach(b => b.setAttribute('aria-pressed', b.dataset.view === U.view));
+}
+function renderBand() {
+  const items = occurrencesOn(U.sel), per = new Map(); let total = 0;
+  for (const o of items) {
+    const m = Math.max(0, Math.min(o.end, dayEndMin()) - Math.max(o.start, dayStartMin()));
+    if (!m) continue; per.set(o.cat, (per.get(o.cat) || 0) + m); total += m;
+  }
+  const span = dayEndMin() - dayStartMin();
+  const label = total ? `${fmtDur(total)} bloccate` : 'Giornata libera';
+  el.band.innerHTML = `<div class="band-bar" aria-hidden="true">${[...per.entries()].map(([c, m]) => `<i style="--c:${cat(c).color};width:${(m / span * 100).toFixed(2)}%"></i>`).join('')}</div><div class="band-label">${esc(label)}${ICON.right}</div>`;
+}
+function renderPalette() {
+  el.palette.innerHTML = `<span class="pc-lbl">Blocca</span>` + S.cats.map(c =>
+    `<button class="pc${U.armed === c.id ? ' is-armed' : ''}" data-arm="${c.id}" style="--c:${c.color}" aria-pressed="${U.armed === c.id}"><span class="em">${esc(c.emoji || '')}</span>${esc(c.name)}</button>`).join('') +
+    `<button class="pc pc-manage" data-manage>Modifica</button>`;
+  el.app.classList.toggle('is-armed', !!U.armed);
+  renderBar();
+}
+function renderBar() {
+  el.app.classList.toggle('has-bar', !!(U.armed || U.paste));
+  el.app.classList.toggle('is-pasting', !!U.paste);
+  if (U.armed) {
+    const c = cat(U.armed);
+    el.armbar.style.setProperty('--c', c.color);
+    el.armbar.innerHTML = `<span>Trascina sulle ore per bloccare <b>${esc(c.name)}</b>. Tocca un orario per un'ora sola.</span><button id="armDone">Fine</button>`;
+  } else if (U.paste === 'block' && U.clip) {
+    const it = U.clip.items[0];
+    el.armbar.style.setProperty('--c', cat(it.cat).color);
+    el.armbar.innerHTML = `<span>Tocca un orario per incollare <b>${esc(titleOf(it))}</b> (${fmtDur(it.end - it.start)}). Puoi incollarlo in più giorni.</span><button id="armDone">Fine</button>`;
+  } else if (U.paste === 'day' && U.clip) {
+    const n = U.clip.items.length;
+    el.armbar.style.setProperty('--c', '#9DB6FF');
+    el.armbar.innerHTML = `<span>Tocca un giorno per incollare ${n === 1 ? 'il blocco' : `i <b>${n} blocchi</b>`} di ${esc(dayLabel(U.clip.from).toLowerCase())}.</span><button id="armDone">Fine</button>`;
+  }
+}
+function evHTML(it) {
+  const c = cat(it.cat), s = Math.max(it.start, dayStartMin()), e = Math.min(it.end, dayEndMin());
+  const top = minToY(s), px = minToY(e) - top, h = Math.max(px - 2, 12);
+  const w = 100 / it._cols, left = it._col * w;
+  const cls = ['ev', px < 38 ? 'is-short' : '', px < 22 ? 'is-tiny' : '', isDone(it) ? 'is-done' : '', it.kind === 'series' ? 'is-rec' : ''].join(' ');
+  return `<div class="${cls}" data-id="${esc(it.id)}" data-s="${s}" data-e="${e}" style="--c:${c.color};top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px)"><div class="ev-title">${esc(titleOf(it))}</div><div class="ev-time">${fmtTime(it.start)}–${fmtTime(it.end)}</div><div class="ev-handle"></div></div>`;
+}
+function renderGrid() {
+  const days = visibleDays(), today = todayKey(), { dayStart, dayEnd } = S.prefs;
+  const H = hourH(), total = (dayEnd - dayStart) * H;
+  el.scroll.style.setProperty('--n', days.length);
+  el.scroll.style.setProperty('--hour', H + 'px');
+  el.heads.hidden = days.length === 1;
+  el.heads.innerHTML = days.length === 1 ? '' : '<div></div>' + days.map(k =>
+    `<button class="head${k === today ? ' is-today' : ''}" data-day="${k}"><span>${DOW_SHORT[dow(k) - 1]}</span><b>${fromKey(k).getDate()}</b></button>`).join('');
+  let g = '';
+  const every = H < 24 ? 3 : H < 32 ? 2 : 1;
+  for (let h = dayStart; h < dayEnd; h++) g += `<div class="hl" data-h="${h}" style="top:${(h - dayStart) * H}px"${(h - dayStart) % every ? ' hidden' : ''}>${pad(h)}:00</div>`;
+  el.body.className = 'body' + (days.length === 7 && el.scroll.clientWidth < 760 ? ' is-narrow' : '');
+  el.body.innerHTML = `<div class="gutter" style="height:${total}px">${g}</div>` + days.map(k => {
+    const items = layout(occurrencesOn(k).filter(o => o.end > dayStart * 60 && o.start < dayEnd * 60));
+    return `<div class="col${k === today ? ' is-today' : ''}" data-day="${k}" style="height:${total}px">${items.map(evHTML).join('')}</div>`;
+  }).join('');
+  renderNow();
+}
+// Re-position the existing grid for a new hour height without rebuilding it
+// (rebuilding would detach the elements under the fingers during a pinch).
+function relayoutGrid() {
+  const H = hourH(), { dayStart, dayEnd } = S.prefs, total = (dayEnd - dayStart) * H;
+  const every = H < 24 ? 3 : H < 32 ? 2 : 1;
+  el.scroll.style.setProperty('--hour', H + 'px');
+  $$('.gutter, .col', el.body).forEach(c => { c.style.height = total + 'px'; });
+  $$('.hl', el.body).forEach(l => { const h = +l.dataset.h; l.style.top = (h - dayStart) * H + 'px'; l.hidden = (h - dayStart) % every !== 0; });
+  $$('.ev', el.body).forEach(ev => {
+    if (!ev.dataset.s) return;
+    const top = minToY(+ev.dataset.s), px = minToY(+ev.dataset.e) - top;
+    ev.style.top = top + 'px'; ev.style.height = Math.max(px - 2, 12) + 'px';
+    ev.classList.toggle('is-short', px < 38); ev.classList.toggle('is-tiny', px < 22);
+  });
+  const n = el.body.querySelector('.now'); if (n) n.style.top = (minToY(nowMin()) - 1) + 'px';
+}
+function renderNow() {
+  $$('.now', el.body).forEach(n => n.remove());
+  const col = el.body.querySelector(`.col[data-day="${todayKey()}"]`);
+  if (!col) return;
+  const m = nowMin();
+  if (m < dayStartMin() || m > dayEndMin()) return;
+  const n = document.createElement('div'); n.className = 'now'; n.style.top = (minToY(m) - 1) + 'px';
+  col.appendChild(n);
+}
+function renderTodos() {
+  const open = S.todos.filter(t => !t.done), done = S.todos.filter(t => t.done);
+  const unplanned = open.filter(t => !linkedEvent(t)), planned = open.filter(t => linkedEvent(t));
+  el.count.textContent = unplanned.length ? `${unplanned.length} da incastrare` : (open.length ? 'tutto pianificato' : '');
+  el.chips.innerHTML = unplanned.length ? unplanned.map(t => {
+    const c = cat(t.cat);
+    return `<div class="chip" data-todo="${t.id}" style="--c:${c.color}"><i></i><span>${esc(t.title)}</span><em>${fmtDur(t.dur || 60)}</em></div>`;
+  }).join('') : `<p class="chips-empty">${open.length ? 'Tutto già nel calendario.' : 'Niente da fare. Tocca + per aggiungere.'}</p>`;
+  const focused = document.activeElement && document.activeElement.id === 'quickIn';
+  el.list.innerHTML = `
+    <form class="quick" id="quickForm"><input class="in" id="quickIn" placeholder="Aggiungi una cosa da fare" maxlength="100" autocomplete="off" enterkeyhint="done"></form>
+    ${unplanned.length ? `<div class="group-t">Da incastrare nel calendario</div>${unplanned.map(tdHTML).join('')}` : ''}
+    ${planned.length ? `<div class="group-t">Già nel calendario</div>${planned.map(tdHTML).join('')}` : ''}
+    ${!open.length ? `<p class="empty">Scrivi qui sopra cosa devi fare questa settimana. Poi tienilo premuto e trascinalo nel calendario, dove hai spazio.</p>` : ''}
+    ${done.length ? `<div class="group-t">Fatte <button id="clearDone">Svuota</button></div>${done.map(tdHTML).join('')}` : ''}`;
+  if (focused) $('#quickIn').focus();
+}
+function tdHTML(t) {
+  const c = cat(t.cat), ev = linkedEvent(t);
+  return `<div class="td${t.done ? ' is-done' : ''}" data-todo="${t.id}" style="--c:${c.color}">
+    <button class="td-check" data-check="${t.id}" aria-label="${t.done ? 'Segna come da fare' : 'Segna come fatto'}">${t.done ? ICON.check : ''}</button>
+    <div class="td-body"><div class="td-title">${esc(t.title)}</div>
+    <div class="td-meta"><span class="td-cat"><i></i>${esc(c.name)}</span><span>${fmtDur(t.dur || 60)}</span>${ev ? `<span class="td-when">${dayLabel(ev.date)}, ${fmtTime(ev.start)}</span>` : ''}</div></div>
+    ${t.done ? '' : `<span class="td-grip" aria-hidden="true">${ICON.grip}</span>`}</div>`;
+}
+function scrollToTime(min) {
+  el.scroll.scrollTop = Math.max(0, minToY(min) - 48);
+}
+
+/* ---------- drag engine (touch + mouse) ---------- */
+const MOVE_OPTS = { passive: false };
+function bindDrag(root, resolve) {
+  root.addEventListener('touchstart', e => {
+    if (drag || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const cfg = resolve(e.target, t.clientX, t.clientY, 'touch');
+    if (!cfg) return;
+    const st = { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY, moved: false, kind: 'touch' };
+    let timer = 0, active = false;
+    const off = () => {
+      document.removeEventListener('touchmove', move, MOVE_OPTS);
+      document.removeEventListener('touchend', end); document.removeEventListener('touchcancel', end);
+    };
+    const move = ev => {
+      if (ev.touches.length > 1) { clearTimeout(timer); off(); st.moved = true; if (active) finishDrag(true); return; }
+      const tt = ev.touches[0]; if (!tt) return;
+      st.x = tt.clientX; st.y = tt.clientY;
+      if (!active) {
+        if (Math.hypot(st.x - st.x0, st.y - st.y0) > 9) { st.moved = true; clearTimeout(timer); off(); }
+        return;
+      }
+      if (ev.cancelable) ev.preventDefault();
+      cfg.onMove(st);
+    };
+    const end = ev => {
+      clearTimeout(timer); off();
+      if (active) { if (ev.cancelable) ev.preventDefault(); finishDrag(ev.type === 'touchcancel'); }
+      else if (!st.moved && ev.type === 'touchend') { if (ev.cancelable) ev.preventDefault(); cfg.onTap && cfg.onTap(st); }
+    };
+    document.addEventListener('touchmove', move, MOVE_OPTS);
+    document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
+    const activate = () => { active = true; startDrag(cfg, st); };
+    if (cfg.longPress > 0) timer = setTimeout(() => { if (!st.moved) { haptic(); activate(); } }, cfg.longPress);
+    else activate();
+  }, { passive: true });
+
+  root.addEventListener('mousedown', e => {
+    if (drag || e.button !== 0) return;
+    const cfg = resolve(e.target, e.clientX, e.clientY, 'mouse');
+    if (!cfg) return;
+    e.preventDefault();
+    const st = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: false, kind: 'mouse' };
+    let active = false;
+    const move = ev => {
+      st.x = ev.clientX; st.y = ev.clientY;
+      if (!active) { if (Math.hypot(st.x - st.x0, st.y - st.y0) > 4) { active = true; st.moved = true; startDrag(cfg, st); } return; }
+      cfg.onMove(st);
+    };
+    const up = () => { off(); if (active) finishDrag(false); else cfg.onTap && cfg.onTap(st); };
+    const off = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+  });
+}
+function startDrag(cfg, st) {
+  drag = { cfg, st };
+  document.body.classList.add('is-dragging');
+  if (st.kind === 'touch') el.scroll.classList.add('drag-lock');
+  cfg.onStart(st);
+  cancelAnimationFrame(raf); raf = requestAnimationFrame(autoTick);
+}
+function finishDrag(cancelled) {
+  const d = drag; drag = null; cancelAnimationFrame(raf);
+  document.body.classList.remove('is-dragging'); el.scroll.classList.remove('drag-lock');
+  U.dragEndAt = Date.now();
+  if (!d) return;
+  if (cancelled) (d.cfg.onCancel || render)(); else d.cfg.onEnd(d.st);
+}
+function autoTick() {
+  if (!drag) return;
+  const { st, cfg } = drag, r = el.scroll.getBoundingClientRect();
+  const top = r.top + el.heads.offsetHeight; let dy = 0;
+  if (st.x > r.left && st.x < r.right) {
+    if (st.y < top + 44 && st.y >= top) dy = -Math.min(16, Math.ceil((top + 44 - st.y) / 4));
+    else if (st.y > r.bottom - 44 && st.y < r.bottom + 90) dy = Math.min(16, Math.ceil((st.y - (r.bottom - 44)) / 5));
+  }
+  if (dy) { const b = el.scroll.scrollTop; el.scroll.scrollTop += dy; if (el.scroll.scrollTop !== b) cfg.onMove(st); }
+  raf = requestAnimationFrame(autoTick);
+}
+function slotAt(x, y) {
+  const cols = $$('.col', el.body); if (!cols.length) return null;
+  let col = cols.find(c => { const r = c.getBoundingClientRect(); return x >= r.left && x < r.right; });
+  if (!col) col = x < cols[0].getBoundingClientRect().left ? cols[0] : cols[cols.length - 1];
+  return { col, date: col.dataset.day, min: minAt(col, y) };
+}
+function overGrid(x, y) {
+  const r = el.scroll.getBoundingClientRect();
+  const first = el.body.querySelector('.col');
+  const left = first ? first.getBoundingClientRect().left - 4 : r.left;
+  return x > left && x < r.right && y > r.top + el.heads.offsetHeight && y < r.bottom + 40;
+}
+function makePreview(col, catId, extra) {
+  const p = document.createElement('div');
+  p.className = 'ev is-preview' + (extra ? ' ' + extra : '');
+  p.style.setProperty('--c', cat(catId).color);
+  p.innerHTML = '<div class="ev-title"></div><div class="ev-time"></div>';
+  col.appendChild(p); return p;
+}
+function placePreview(p, col, start, end, title) {
+  if (p.parentElement !== col) col.appendChild(p);
+  p.style.top = minToY(start) + 'px';
+  const px = minToY(end) - minToY(start);
+  p.style.height = Math.max(px - 2, 12) + 'px';
+  p.style.left = '2px'; p.style.width = 'calc(100% - 4px)';
+  p.classList.toggle('is-short', px < 38); p.classList.toggle('is-tiny', px < 22);
+  p.querySelector('.ev-title').textContent = title;
+  p.querySelector('.ev-time').textContent = `${fmtTime(start)}–${fmtTime(end)}`;
+}
+
+function cfgMove(evEl, it, kind) {
+  const dur = it.end - it.start; let p = null, offset = 0, cur = { date: it.date, start: it.start };
+  return {
+    longPress: kind === 'touch' ? 300 : 0,
+    onTap: () => openEventSheet({ occ: it }),
+    onStart(st) {
+      const s = slotAt(st.x0, st.y0); offset = s ? s.min - it.start : 0;
+      evEl.classList.add('is-ghosted'); p = makePreview(evEl.parentElement, it.cat); this.onMove(st);
+    },
+    onMove(st) {
+      const s = slotAt(st.x, st.y); if (!s) return;
+      const start = clamp(snap(s.min - offset), dayStartMin(), Math.max(dayStartMin(), dayEndMin() - dur));
+      cur = { date: s.date, start }; placePreview(p, s.col, start, start + dur, titleOf(it));
+    },
+    onEnd() {
+      if (cur.date === it.date && cur.start === it.start) return render();
+      applyTime(it, cur.date, cur.start, cur.start + dur, 'Spostato');
+    },
+    onCancel: () => render()
+  };
+}
+function cfgResize(evEl, it) {
+  const col = evEl.parentElement; let p = null, end = it.end;
+  return {
+    longPress: 0,
+    onTap: () => openEventSheet({ occ: it }),
+    onStart(st) { evEl.classList.add('is-ghosted'); p = makePreview(col, it.cat); this.onMove(st); },
+    onMove(st) {
+      end = clamp(snap(it.end + (st.y - st.y0) / hourH() * 60), it.start + SNAP, dayEndMin());
+      placePreview(p, col, it.start, end, titleOf(it));
+    },
+    onEnd(st) {
+      if (Math.hypot(st.x - st.x0, st.y - st.y0) < 6) { render(); return openEventSheet({ occ: it }); }
+      if (end === it.end) return render();
+      applyTime(it, it.date, it.start, end, 'Durata aggiornata');
+    },
+    onCancel: () => render()
+  };
+}
+function rangeFrom(col, a, y) {
+  const b = minAt(col, y);
+  const start = clamp(Math.min(a, floorTo(b, SNAP)), dayStartMin(), dayEndMin() - SNAP);
+  const end = clamp(Math.max(a + SNAP, ceilTo(b, SNAP)), start + SNAP, dayEndMin());
+  return { start, end };
+}
+function hourAt(col, y) {
+  const s = clamp(floorTo(minAt(col, y), 30), dayStartMin(), dayEndMin() - 60);
+  return { start: s, end: s + 60 };
+}
+function cfgPaint(col, catId) {
+  let p = null, a = 0, r = null; const c = cat(catId);
+  return {
+    longPress: 0,
+    onTap(st) { const h = hourAt(col, st.y0); createBlock(col.dataset.day, h.start, h.end, catId); },
+    onStart(st) { a = floorTo(minAt(col, st.y0), SNAP); p = makePreview(col, catId); this.onMove(st); },
+    onMove(st) { r = rangeFrom(col, a, st.y); placePreview(p, col, r.start, r.end, c.name); },
+    onEnd(st) {
+      if (p) p.remove();
+      if (Math.hypot(st.x - st.x0, st.y - st.y0) < 8) { const h = hourAt(col, st.y0); return createBlock(col.dataset.day, h.start, h.end, catId); }
+      createBlock(col.dataset.day, r.start, r.end, catId);
+    },
+    onCancel() { if (p) p.remove(); }
+  };
+}
+function cfgSelect(col, kind) {
+  let p = null, a = 0, r = null;
+  return {
+    longPress: kind === 'touch' ? 380 : 0,
+    onTap(st) {
+      if (Date.now() - U.lastScroll < 220) return;
+      const h = hourAt(col, st.y0); openEventSheet({ date: col.dataset.day, start: h.start, end: h.end });
+    },
+    onStart(st) { a = floorTo(minAt(col, st.y0), SNAP); p = makePreview(col, null, 'is-sel-preview'); this.onMove(st); },
+    onMove(st) { r = rangeFrom(col, a, st.y); placePreview(p, col, r.start, r.end, 'Nuovo blocco'); },
+    onEnd() {
+      if (p) p.remove();
+      let { start, end } = r;
+      if (end - start < 30) { end = Math.min(start + 60, dayEndMin()); }
+      openEventSheet({ date: col.dataset.day, start, end });
+    },
+    onCancel() { if (p) p.remove(); }
+  };
+}
+function cfgTodo(t, kind) {
+  const dur = t.dur || 60; let p = null, target = null;
+  return {
+    longPress: kind === 'touch' ? 240 : 0,
+    onTap: () => openTodoSheet(t),
+    onStart(st) {
+      if (!isDesktop()) setTodoOpen(false);
+      el.ghost.innerHTML = `<i style="background:${cat(t.cat).color}"></i>${esc(t.title)}<em>${fmtDur(dur)}</em>`;
+      el.ghost.classList.add('show'); this.onMove(st);
+    },
+    onMove(st) {
+      el.ghost.style.transform = `translate(${st.x}px,${st.y}px)`;
+      const s = overGrid(st.x, st.y) ? slotAt(st.x, st.y) : null;
+      if (!s) { if (p) { p.remove(); p = null; } target = null; return; }
+      const start = clamp(snap(s.min - Math.min(dur, 60) / 2), dayStartMin(), Math.max(dayStartMin(), dayEndMin() - dur));
+      target = { date: s.date, start };
+      if (!p) p = makePreview(s.col, t.cat);
+      placePreview(p, s.col, start, start + dur, t.title);
+    },
+    onEnd() {
+      el.ghost.classList.remove('show'); if (p) p.remove();
+      if (!target) return render();
+      scheduleTodo(t, target.date, target.start);
+    },
+    onCancel() { el.ghost.classList.remove('show'); if (p) p.remove(); render(); }
+  };
+}
+const NOOP_DRAG = { onStart() {}, onMove() {}, onEnd() {}, onCancel() {} };
+function cfgPaste(col) {
+  return { ...NOOP_DRAG, longPress: 1e9, onTap(st) {
+    if (Date.now() - U.lastScroll < 220 || !U.clip) return;
+    const date = col.dataset.day;
+    if (U.paste === 'day') return pasteDay(date);
+    const it = U.clip.items[0], dur = it.end - it.start;
+    const start = clamp(floorTo(minAt(col, st.y0), SNAP), dayStartMin(), Math.max(dayStartMin(), dayEndMin() - dur));
+    snapshot();
+    const n = pasteInto(date, [{ ...it, start, end: start + dur }]);
+    commit(n ? `Incollato: ${dayLabel(date)}, ${fmtTime(start)}` : 'C\'è già un blocco uguale lì', true);
+  } };
+}
+
+bindDrag(el.body, (target, x, y, kind) => {
+  if (U.paste) { const pc = target.closest('.col'); return pc ? cfgPaste(pc) : null; }
+  const evEl = target.closest('.ev');
+  if (evEl && !evEl.classList.contains('is-preview')) {
+    const it = findOcc(evEl.dataset.id); if (!it) return null;
+    if (target.closest('.ev-handle')) return cfgResize(evEl, it);
+    return cfgMove(evEl, it, kind);
+  }
+  const col = target.closest('.col'); if (!col) return null;
+  if (U.armed) return cfgPaint(col, U.armed);
+  return cfgSelect(col, kind);
+});
+const resolveTodo = (target, x, y, kind) => {
+  if (target.closest('button, input, textarea, select, a, form')) return null;
+  const tEl = target.closest('[data-todo]'); if (!tEl) return null;
+  const t = S.todos.find(z => z.id === tEl.dataset.todo); if (!t) return null;
+  if (t.done) return { ...NOOP_DRAG, longPress: 1e9, onTap: () => openTodoSheet(t) };
+  return cfgTodo(t, kind);
+};
+bindDrag(el.chips, resolveTodo);
+bindDrag(el.list, resolveTodo);
+document.addEventListener('contextmenu', e => { if (e.target.closest('.ev, .td, .chip, .col')) e.preventDefault(); });
+
+/* ---------- data actions ---------- */
+function applyTime(it, date, start, end, verb) {
+  snapshot();
+  if (it.kind === 'event') {
+    const e = S.events.find(x => x.id === it.id); if (!e) return;
+    Object.assign(e, { date, start, end });
+    commit(`${verb}: ${dayLabel(date)}, ${fmtTime(start)}–${fmtTime(end)}`, true);
+  } else {
+    const s = S.series.find(x => x.id === it.seriesId); if (!s) return;
+    (s.skip = s.skip || []).push(it.date);
+    S.events.push(newEvent({ title: s.title, cat: s.cat, date, start, end, notes: s.notes }));
+    commit('Cambiato solo questo giorno, gli altri restano uguali', true);
+  }
+}
+function createBlock(date, start, end, catId) {
+  snapshot();
+  S.events.push(newEvent({ cat: catId, date, start, end }));
+  commit(`${cat(catId).name}: ${fmtTime(start)}–${fmtTime(end)}`, true);
+}
+function scheduleTodo(t, date, start) {
+  snapshot();
+  const dur = t.dur || 60, e = linkedEvent(t);
+  if (e) Object.assign(e, { date, start, end: start + dur });
+  else { const ne = newEvent({ title: t.title, cat: t.cat, date, start, end: start + dur, todoId: t.id }); S.events.push(ne); t.eventId = ne.id; }
+  commit(`Messo in calendario: ${dayLabel(date)}, ${fmtTime(start)}`, true);
+}
+function pasteInto(date, items) {
+  const existing = occurrencesOn(date); let n = 0;
+  for (const it of items) {
+    if (existing.some(o => o.cat === it.cat && o.start === it.start && o.end === it.end && titleOf(o) === titleOf(it))) continue;
+    S.events.push(newEvent({ title: it.title, cat: it.cat, date, start: it.start, end: it.end, notes: it.notes })); n++;
+  }
+  return n;
+}
+function pasteDay(date) {
+  if (!U.clip) return;
+  snapshot();
+  const n = pasteInto(date, U.clip.items);
+  commit(n ? (n === 1 ? `Incollato 1 blocco su ${dayLabel(date)}` : `Incollati ${n} blocchi su ${dayLabel(date)}`) : `${dayLabel(date)} ha già questi blocchi`, true);
+}
+const clipItem = o => ({ title: o.title || '', cat: o.cat, start: o.start, end: o.end, notes: o.notes || '' });
+function startPaste(kind, items, from) {
+  U.clip = { kind, items, from }; U.paste = kind; U.armed = null;
+  closeSheet(); if (!isDesktop()) setTodoOpen(false); renderPalette();
+}
+function endSeriesBefore(s, date) {
+  const prev = addDays(date, -1);
+  if (prev < s.from) S.series = S.series.filter(x => x !== s); else s.until = prev;
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html, mount) {
+  hideToast();
+  el.sheet.innerHTML = '<div class="sheet-grab"></div>' + html;
+  el.sheet.removeAttribute('inert');
+  el.sheet.classList.add('open'); el.backdrop.classList.add('open');
+  el.sheet.scrollTop = 0;
+  $$('[data-close]', el.sheet).forEach(b => b.addEventListener('click', closeSheet));
+  if (mount) mount(el.sheet);
+}
+function closeSheet() {
+  el.sheet.classList.remove('open'); el.backdrop.classList.remove('open'); el.sheet.setAttribute('inert', '');
+  if (document.activeElement && el.sheet.contains(document.activeElement)) document.activeElement.blur();
+}
+const sheetOpen = () => el.sheet.classList.contains('open');
+el.backdrop.addEventListener('click', closeSheet);
+const closeBtn = '<button class="icon-btn" data-close aria-label="Chiudi">' + ICON.close + '</button>';
+const catGridHTML = sel => S.cats.map(c =>
+  `<button type="button" class="cat-opt" data-cat="${c.id}" style="--c:${c.color}" aria-pressed="${c.id === sel}"><span class="em">${esc(c.emoji || '')}</span>${esc(c.name)}</button>`).join('');
+function pressGroup(container, attr, value) {
+  $$(`[${attr}]`, container).forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === String(value))));
+}
+
+function openEventSheet(o) {
+  const occ = o.occ || null;
+  const series = occ && occ.kind === 'series' ? S.series.find(s => s.id === occ.seriesId) : null;
+  const ev = occ && occ.kind === 'event' ? S.events.find(e => e.id === occ.id) : null;
+  const todoId = ev ? ev.todoId : o.todoId;
+  const todo = todoId ? S.todos.find(t => t.id === todoId) : null;
+  const date = occ ? occ.date : o.date;
+  const f = {
+    cat: occ ? occ.cat : (o.cat || U.lastCat || S.cats[0].id),
+    title: occ ? (occ.title || '') : (o.title || ''),
+    date, start: occ ? occ.start : o.start, end: occ ? occ.end : o.end,
+    rep: series ? true : !!o.rep,
+    days: series ? series.days.slice() : (o.days ? o.days.slice() : [dow(date)]),
+    notes: occ ? (occ.notes || '') : '',
+    done: todo ? !!todo.done : !!(ev && ev.done)
+  };
+  const isNew = !occ;
+  const durs = [30, 60, 90, 120, 180];
+  openSheet(`
+    <div class="sh-head"><h3>${isNew ? 'Nuovo blocco' : 'Modifica blocco'}</h3>${closeBtn}</div>
+    <div class="cats" id="fCats">${catGridHTML(f.cat)}</div>
+    <input class="in" id="fTitle" placeholder="Titolo (facoltativo)" value="${esc(f.title)}" maxlength="80" autocomplete="off">
+    <div class="row3">
+      <label class="f"><span id="fDateLbl">${f.rep ? 'A partire da' : 'Giorno'}</span><input class="in" type="date" id="fDate" value="${f.date}"></label>
+      <label class="f"><span>Inizio</span><input class="in" type="time" step="900" id="fStart" value="${timeVal(f.start)}"></label>
+      <label class="f"><span>Fine</span><input class="in" type="time" step="900" id="fEnd" value="${timeVal(f.end)}"></label>
+    </div>
+    <div class="mini" id="fDur">${durs.map(d => `<button type="button" data-dur="${d}" aria-pressed="${f.end - f.start === d}">${fmtDur(d)}</button>`).join('')}</div>
+    ${isNew ? '' : `<div class="copy-row"><button type="button" class="btn sm btn-ghost" id="fCopy">Copia e incolla</button><button type="button" class="btn sm btn-ghost" id="fDupT" aria-expanded="false">Duplica in altri giorni</button></div>
+    <div class="dup-box" id="fDup" hidden>
+      <div class="days dup-days" id="fDupDays">${weekOf(date).map((k, i) => `<button type="button" data-k="${k}" aria-pressed="false" ${k === date ? 'disabled' : ''} aria-label="${DOW_LONG[i]} ${fromKey(k).getDate()}">${DOW_LETTER[i]}<small>${fromKey(k).getDate()}</small></button>`).join('')}</div>
+      <div class="row2"><button type="button" class="btn sm btn-ghost" id="fDupAll">Tutta la settimana</button><button type="button" class="btn sm btn-primary" id="fDupGo" disabled>Duplica</button></div>
+    </div>`}
+    ${todo ? '' : `<div class="switch-row"><span>Ripeti ogni settimana</span><label class="switch"><input type="checkbox" id="fRep" ${f.rep ? 'checked' : ''} aria-label="Ripeti ogni settimana"><span></span></label></div>
+    <div class="days" id="fDays" ${f.rep ? '' : 'hidden'}>${DOW_LETTER.map((l, i) => `<button type="button" data-d="${i + 1}" aria-pressed="${f.days.includes(i + 1)}" aria-label="${DOW_LONG[i]}">${l}</button>`).join('')}</div>`}
+    ${(!isNew && !series) ? `<div class="switch-row"><span>Fatto</span><label class="switch"><input type="checkbox" id="fDone" ${f.done ? 'checked' : ''} aria-label="Fatto"><span></span></label></div>` : ''}
+    ${todo ? `<p class="note">Viene dalla lista: “${esc(todo.title)}”.</p>` : ''}
+    <textarea class="in" id="fNotes" placeholder="Note" rows="2" style="margin-top:8px">${esc(f.notes)}</textarea>
+    <div id="fActions">
+      <div class="actions">
+        ${isNew ? '' : '<button class="btn btn-danger" id="fDel">Elimina</button>'}
+        <button class="btn btn-primary" id="fSave">${isNew ? 'Aggiungi' : 'Salva'}</button>
+      </div>
+    </div>`, root => {
+    const fStart = $('#fStart', root), fEnd = $('#fEnd', root), fRep = $('#fRep', root), fDays = $('#fDays', root);
+    let prevStart = f.start;
+    $('#fCats', root).addEventListener('click', e => {
+      const b = e.target.closest('[data-cat]'); if (!b) return;
+      f.cat = b.dataset.cat; pressGroup(root.querySelector('#fCats'), 'data-cat', f.cat);
+    });
+    const syncDur = () => {
+      let s = parseTime(fStart.value), en = parseTime(fEnd.value); if (en === 0) en = 1440;
+      pressGroup($('#fDur', root), 'data-dur', en - s);
+    };
+    $('#fDur', root).addEventListener('click', e => {
+      const b = e.target.closest('[data-dur]'); if (!b) return;
+      const s = parseTime(fStart.value); if (isNaN(s)) return;
+      fEnd.value = timeVal(Math.min(s + (+b.dataset.dur), 1440)); syncDur();
+    });
+    fStart.addEventListener('change', () => {
+      const s = parseTime(fStart.value); let en = parseTime(fEnd.value); if (en === 0) en = 1440;
+      if (!isNaN(s) && !isNaN(prevStart) && !isNaN(en)) { fEnd.value = timeVal(Math.min(en + (s - prevStart), 1440)); }
+      prevStart = s; syncDur();
+    });
+    fEnd.addEventListener('change', syncDur);
+    if (fRep) fRep.addEventListener('change', () => {
+      fDays.hidden = !fRep.checked; $('#fDateLbl', root).textContent = fRep.checked ? 'A partire da' : 'Giorno';
+    });
+    if (fDays) fDays.addEventListener('click', e => {
+      const b = e.target.closest('[data-d]'); if (!b) return;
+      const d = +b.dataset.d; f.days = f.days.includes(d) ? f.days.filter(x => x !== d) : [...f.days, d].sort();
+      b.setAttribute('aria-pressed', String(f.days.includes(d)));
+    });
+    const read = () => {
+      f.title = $('#fTitle', root).value.trim();
+      f.date = $('#fDate', root).value || f.date;
+      f.start = parseTime(fStart.value); f.end = parseTime(fEnd.value); if (f.end === 0) f.end = 1440;
+      f.rep = fRep ? fRep.checked : false;
+      f.notes = $('#fNotes', root).value.trim();
+      const fd = $('#fDone', root); if (fd) f.done = fd.checked;
+      if (isNaN(f.start) || isNaN(f.end)) { toast('Controlla gli orari'); return false; }
+      if (f.end <= f.start) { toast('La fine deve essere dopo l\'inizio'); return false; }
+      if (f.rep && !f.days.length) { toast('Scegli almeno un giorno della settimana'); return false; }
+      return true;
+    };
+    const askScope = (verb, run) => {
+      $('#fActions', root).innerHTML = `<p class="note" style="margin-top:16px">Questo blocco si ripete ogni settimana. Cosa vuoi ${verb}?</p>
+        <div class="actions-col"><button class="btn" data-scope="one">Solo questo giorno</button><button class="btn" data-scope="next">Questo e i successivi</button><button class="btn btn-ghost" data-scope="back">Annulla</button></div>`;
+      $('#fActions', root).addEventListener('click', e => {
+        const b = e.target.closest('[data-scope]'); if (!b) return;
+        if (b.dataset.scope === 'back') { closeSheet(); return; }
+        run(b.dataset.scope);
+      });
+    };
+    $('#fSave', root).addEventListener('click', () => {
+      if (!read()) return;
+      if (series) askScope('modificare', scope => saveEvent(f, occ, scope, todo));
+      else saveEvent(f, occ, null, todo);
+    });
+    const del = $('#fDel', root);
+    if (del) del.addEventListener('click', () => {
+      if (series) askScope('eliminare', scope => deleteOcc(occ, scope));
+      else deleteOcc(occ, null);
+    });
+    if (!isNew) {
+      const dupSel = new Set(), go = $('#fDupGo', root), box = $('#fDup', root);
+      const syncDup = () => {
+        $$('[data-k]', box).forEach(b => b.setAttribute('aria-pressed', String(dupSel.has(b.dataset.k))));
+        go.disabled = !dupSel.size;
+        go.textContent = dupSel.size ? `Duplica su ${dupSel.size} giorn${dupSel.size === 1 ? 'o' : 'i'}` : 'Duplica';
+      };
+      $('#fCopy', root).addEventListener('click', () => startPaste('block', [clipItem(occ)], occ.date));
+      $('#fDupT', root).addEventListener('click', e => {
+        box.hidden = !box.hidden; e.currentTarget.setAttribute('aria-expanded', String(!box.hidden));
+        if (!box.hidden) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+      $('#fDupDays', root).addEventListener('click', e => {
+        const b = e.target.closest('[data-k]'); if (!b || b.disabled) return;
+        dupSel.has(b.dataset.k) ? dupSel.delete(b.dataset.k) : dupSel.add(b.dataset.k); syncDup();
+      });
+      $('#fDupAll', root).addEventListener('click', () => {
+        const all = weekOf(occ.date).filter(k => k !== occ.date);
+        if (all.every(k => dupSel.has(k))) dupSel.clear(); else all.forEach(k => dupSel.add(k));
+        syncDup();
+      });
+      go.addEventListener('click', () => {
+        snapshot(); let n = 0;
+        for (const k of dupSel) n += pasteInto(k, [clipItem(occ)]);
+        closeSheet();
+        commit(n ? `Duplicato su ${n} giorn${n === 1 ? 'o' : 'i'}` : 'Quei giorni hanno già questo blocco', true);
+      });
+    }
+  });
+}
+function openDaySheet(k) {
+  const items = occurrencesOn(k), d = fromKey(k), copyable = items.filter(o => o.kind === 'event');
+  const hasRec = items.some(o => o.kind === 'series');
+  const total = items.reduce((a, o) => a + (o.end - o.start), 0);
+  openSheet(`
+    <div class="sh-head"><h3>${DOW_LONG[dow(k) - 1]} ${d.getDate()} ${MONTHS[d.getMonth()].toLowerCase()}</h3>${closeBtn}</div>
+    ${items.length ? `<p class="note" style="margin:-6px 2px 14px">${items.length === 1 ? '1 blocco' : items.length + ' blocchi'}, ${fmtDur(total)} in tutto. Copia la giornata per incollarla uguale in altri giorni${hasRec ? ': i blocchi che si ripetono già ogni settimana non vengono copiati' : ''}.</p>
+    <div class="day-list">${items.map(o => `<button class="day-it" data-occ="${esc(o.id)}" style="--c:${cat(o.cat).color}"><i></i><span>${fmtTime(o.start)}–${fmtTime(o.end)}</span><b>${esc(titleOf(o))}</b></button>`).join('')}</div>
+    <div class="actions"><button class="btn btn-danger" id="dClear">Svuota</button><button class="btn btn-primary" id="dCopy" ${copyable.length ? '' : 'disabled'}>Copia giornata</button></div>`
+    : `<p class="note">Nessun blocco in questa giornata. Tocca un orario nel calendario per aggiungerne uno.</p>`}`, root => {
+    root.querySelectorAll('[data-occ]').forEach(b => b.addEventListener('click', () => { const o = findOcc(b.dataset.occ); if (o) openEventSheet({ occ: o }); }));
+    const copy = $('#dCopy', root);
+    if (copy) copy.addEventListener('click', () => { if (copyable.length) startPaste('day', copyable.map(clipItem), k); });
+    const clear = $('#dClear', root); let armedClear = false;
+    if (clear) clear.addEventListener('click', () => {
+      if (!armedClear) { armedClear = true; clear.textContent = 'Tocca di nuovo per svuotare'; return; }
+      snapshot();
+      for (const e of S.events.filter(x => x.date === k)) {
+        if (e.todoId) { const t = S.todos.find(x => x.id === e.todoId); if (t) t.eventId = null; }
+      }
+      S.events = S.events.filter(x => x.date !== k);
+      for (const o of items) if (o.kind === 'series') { const s = S.series.find(x => x.id === o.seriesId); if (s) (s.skip = s.skip || []).push(k); }
+      closeSheet(); commit('Giornata svuotata', true);
+    });
+  });
+}
+function saveEvent(f, occ, scope, todo) {
+  snapshot();
+  U.lastCat = f.cat;
+  const base = { title: f.title, cat: f.cat, start: f.start, end: f.end, notes: f.notes };
+  const mkSeries = from => ({ id: uid(), ...base, days: f.days.slice(), from, until: null, skip: [] });
+  if (!occ) {
+    if (f.rep) S.series.push(mkSeries(f.date));
+    else {
+      const e = newEvent({ ...base, date: f.date, todoId: todo ? todo.id : null }); S.events.push(e);
+      if (todo) todo.eventId = e.id;
+    }
+  } else if (occ.kind === 'event') {
+    const e = S.events.find(x => x.id === occ.id); if (!e) return;
+    if (f.rep) {
+      S.events = S.events.filter(x => x !== e);
+      S.series.push(mkSeries(f.date));
+    } else {
+      Object.assign(e, base, { date: f.date, done: f.done });
+      if (todo) { todo.done = f.done; todo.title = f.title || todo.title; todo.cat = f.cat; todo.dur = f.end - f.start; }
+    }
+  } else {
+    const s = S.series.find(x => x.id === occ.seriesId); if (!s) return;
+    if (scope === 'one') {
+      (s.skip = s.skip || []).push(occ.date);
+      S.events.push(newEvent({ ...base, date: f.rep ? occ.date : f.date }));
+    } else if (!f.rep) {
+      endSeriesBefore(s, occ.date);
+      S.events.push(newEvent({ ...base, date: f.date }));
+    } else if (occ.date <= s.from) {
+      Object.assign(s, base, { days: f.days.slice() });
+    } else {
+      const skip = (s.skip || []).filter(d => d >= occ.date);
+      endSeriesBefore(s, occ.date);
+      S.series.push({ ...mkSeries(occ.date), skip });
+    }
+  }
+  if (!f.rep && f.date && !visibleDays().includes(f.date)) U.sel = f.date;
+  closeSheet();
+  commit(occ ? 'Salvato' : (f.rep ? 'Aggiunto, si ripete ogni settimana' : 'Aggiunto'), true);
+}
+function deleteOcc(occ, scope) {
+  snapshot();
+  if (occ.kind === 'event') {
+    const e = S.events.find(x => x.id === occ.id);
+    S.events = S.events.filter(x => x.id !== occ.id);
+    if (e && e.todoId) { const t = S.todos.find(x => x.id === e.todoId); if (t) t.eventId = null; }
+  } else {
+    const s = S.series.find(x => x.id === occ.seriesId);
+    if (s) { if (scope === 'one') (s.skip = s.skip || []).push(occ.date); else endSeriesBefore(s, occ.date); }
+  }
+  closeSheet();
+  commit('Eliminato', true);
+}
+
+function openTodoSheet(t) {
+  const isNew = !t;
+  const f = { title: t ? t.title : '', cat: t ? t.cat : (U.lastTodoCat || 'studio-scuola'), dur: t ? (t.dur || 60) : 60 };
+  const ev = t ? linkedEvent(t) : null;
+  const durs = [15, 30, 45, 60, 90, 120, 180];
+  openSheet(`
+    <div class="sh-head"><h3>${isNew ? 'Nuova cosa da fare' : 'Cosa da fare'}</h3>${closeBtn}</div>
+    <input class="in" id="tTitle" placeholder="Cosa devi fare?" value="${esc(f.title)}" maxlength="100" autocomplete="off">
+    <span class="lbl" style="margin-top:16px">Categoria</span>
+    <div class="cats" id="tCats">${catGridHTML(f.cat)}</div>
+    <span class="lbl">Quanto tempo ti serve</span>
+    <div class="mini" id="tDur">${durs.map(d => `<button type="button" data-dur="${d}" aria-pressed="${f.dur === d}">${fmtDur(d)}</button>`).join('')}</div>
+    ${ev ? `<div class="linked"><div><span>Nel calendario</span><b>${DOW_LONG[dow(ev.date) - 1]} ${fromKey(ev.date).getDate()}, ${fmtTime(ev.start)}–${fmtTime(ev.end)}</b></div><button class="btn btn-ghost sm" id="tGo">Vai</button><button class="btn btn-ghost sm" id="tUnplan">Togli</button></div>`
+      : (isNew ? '' : '<p class="note">Tienila premuta nella lista e trascinala nel calendario, oppure tocca Pianifica.</p>')}
+    <div class="actions">
+      ${isNew ? '' : '<button class="btn btn-danger" id="tDel">Elimina</button>'}
+      ${(!ev && !(t && t.done)) ? '<button class="btn" id="tPlan">Pianifica</button>' : ''}
+      <button class="btn btn-primary" id="tSave">${isNew ? 'Aggiungi' : 'Salva'}</button>
+    </div>`, root => {
+    $('#tCats', root).addEventListener('click', e => {
+      const b = e.target.closest('[data-cat]'); if (!b) return; f.cat = b.dataset.cat; pressGroup($('#tCats', root), 'data-cat', f.cat);
+    });
+    $('#tDur', root).addEventListener('click', e => {
+      const b = e.target.closest('[data-dur]'); if (!b) return; f.dur = +b.dataset.dur; pressGroup($('#tDur', root), 'data-dur', f.dur);
+    });
+    const persist = () => {
+      f.title = $('#tTitle', root).value.trim();
+      if (!f.title) { toast('Scrivi cosa devi fare'); return null; }
+      U.lastTodoCat = f.cat;
+      let item = t;
+      if (isNew) { item = { id: uid(), title: f.title, cat: f.cat, dur: f.dur, done: false, eventId: null, created: Date.now() }; S.todos.unshift(item); }
+      else {
+        Object.assign(item, { title: f.title, cat: f.cat, dur: f.dur });
+        const e = linkedEvent(item);
+        if (e) Object.assign(e, { title: item.title, cat: item.cat, end: Math.min(e.start + item.dur, 1440) });
+      }
+      return item;
+    };
+    $('#tSave', root).addEventListener('click', () => { snapshot(); if (!persist()) return; closeSheet(); commit(isNew ? 'Aggiunta alla lista' : 'Salvato'); });
+    const plan = $('#tPlan', root);
+    if (plan) plan.addEventListener('click', () => {
+      snapshot(); const item = persist(); if (!item) return; save(); render();
+      const start = findFreeSlot(U.sel, item.dur);
+      openEventSheet({ date: U.sel, start, end: Math.min(start + item.dur, 1440), cat: item.cat, title: item.title, todoId: item.id });
+    });
+    const del = $('#tDel', root);
+    if (del) del.addEventListener('click', () => {
+      snapshot();
+      const e = linkedEvent(t); if (e) S.events = S.events.filter(x => x !== e);
+      S.todos = S.todos.filter(x => x !== t); closeSheet(); commit('Eliminata', true);
+    });
+    const go = $('#tGo', root);
+    if (go) go.addEventListener('click', () => {
+      closeSheet(); U.sel = ev.date; render(); scrollToTime(ev.start); if (!isDesktop()) setTodoOpen(false);
+    });
+    const unplan = $('#tUnplan', root);
+    if (unplan) unplan.addEventListener('click', () => {
+      snapshot(); S.events = S.events.filter(x => x.id !== ev.id); t.eventId = null; closeSheet(); commit('Tolta dal calendario', true);
+    });
+  });
+}
+
+function installText() {
+  if (PREVIEW) return 'Questa è l\'anteprima. Per installarla sul telefono si apre il link pubblico in Safari e si sceglie «Aggiungi alla schermata Home».';
+  if (standalone()) return 'È già installata: la apri dalla schermata Home come un\'app.';
+  if (isIOS()) return 'Su iPhone: apri questo link in Safari, tocca il tasto Condividi (il quadrato con la freccia) e poi «Aggiungi alla schermata Home».';
+  return 'Dal menu del browser scegli «Installa app» oppure «Aggiungi a schermata Home».';
+}
+function catRowsHTML() {
+  return S.cats.map(c => `<div class="cat-row" data-cat="${c.id}">
+    <label class="swatch" style="--c:${c.color}"><input type="color" value="${c.color}" data-k="color" aria-label="Colore"></label>
+    <input class="in em-in" value="${esc(c.emoji || '')}" maxlength="4" data-k="emoji" aria-label="Emoji">
+    <input class="in" value="${esc(c.name)}" maxlength="24" data-k="name" aria-label="Nome categoria">
+    <button class="icon-btn" data-delcat aria-label="Elimina ${esc(c.name)}">${ICON.close}</button></div>`).join('');
+}
+function openSettings(focusCats) {
+  const hours = (a, b, sel) => Array.from({ length: b - a + 1 }, (_, i) => a + i).map(h => `<option value="${h}" ${h === sel ? 'selected' : ''}>${pad(h)}:00</option>`).join('');
+  openSheet(`
+    <div class="sh-head"><h3>Impostazioni</h3>${closeBtn}</div>
+    <section class="set-sec"><h4>Orari visibili</h4>
+      <div class="row2"><label class="f"><span>Dalle</span><select class="in" id="sStart">${hours(0, 12, S.prefs.dayStart)}</select></label>
+      <label class="f"><span>Alle</span><select class="in" id="sEnd">${hours(14, 24, S.prefs.dayEnd)}</select></label></div></section>
+    <section class="set-sec" id="sCatsSec"><h4>Categorie</h4><div id="sCats">${catRowsHTML()}</div>
+      <button class="btn btn-ghost full" id="sAddCat" style="margin-top:4px">Aggiungi categoria</button></section>
+    ${PREVIEW ? '' : `<section class="set-sec"><h4>Backup</h4>
+      <p class="note">Tutto resta salvato su questo telefono. Ogni tanto esporta un backup: se cambi telefono o cancelli i dati del browser, lo reimporti e ritrovi tutto.</p>
+      <div class="row2" style="margin-top:10px"><button class="btn" id="sExport">Esporta</button><label class="btn">Importa<input type="file" accept="application/json,.json" id="sImport" hidden></label></div></section>`}
+    <section class="set-sec"><h4>Installa sul telefono</h4><p class="note">${installText()}</p></section>
+    <section class="set-sec"><button class="btn btn-danger btn-ghost full" id="sReset">Cancella tutti i dati</button></section>`, root => {
+    $('#sStart', root).addEventListener('change', e => { S.prefs.dayStart = +e.target.value; save(); render(); });
+    $('#sEnd', root).addEventListener('change', e => { S.prefs.dayEnd = +e.target.value; save(); render(); });
+    const cats = $('#sCats', root);
+    cats.addEventListener('input', e => {
+      const k = e.target.dataset.k; if (k !== 'color') return;
+      e.target.closest('.swatch').style.setProperty('--c', e.target.value);
+    });
+    cats.addEventListener('change', e => {
+      const row = e.target.closest('[data-cat]'), k = e.target.dataset.k; if (!row || !k) return;
+      const c = S.cats.find(x => x.id === row.dataset.cat); if (!c) return;
+      const v = e.target.value.trim(); if (k === 'name' && !v) { e.target.value = c.name; return; }
+      c[k] = v; save(); render();
+    });
+    cats.addEventListener('click', e => {
+      const b = e.target.closest('[data-delcat]'); if (!b) return;
+      if (S.cats.length <= 1) return toast('Serve almeno una categoria');
+      const id = b.closest('[data-cat]').dataset.cat; snapshot();
+      S.cats = S.cats.filter(x => x.id !== id); cats.innerHTML = catRowsHTML(); commit('Categoria eliminata', true);
+    });
+    $('#sAddCat', root).addEventListener('click', () => {
+      const palette = ['#4FD1C5', '#F98B2B', '#C1E14B', '#7CC4FF', '#E86BFF', '#FFD35C'];
+      S.cats.push({ id: uid(), name: 'Nuova', emoji: '✨', color: palette[S.cats.length % palette.length] });
+      cats.innerHTML = catRowsHTML(); save(); render();
+      const last = cats.lastElementChild.querySelector('[data-k="name"]'); last.focus(); last.select();
+    });
+    if ($('#sExport', root)) {
+      $('#sExport', root).addEventListener('click', exportBackup);
+      $('#sImport', root).addEventListener('change', e => importBackup(e.target.files[0]));
+    }
+    let armedReset = false;
+    $('#sReset', root).addEventListener('click', e => {
+      if (!armedReset) { armedReset = true; e.currentTarget.textContent = 'Tocca di nuovo per cancellare tutto'; return; }
+      snapshot(); S = defaultState(); S.seenWelcome = true; closeSheet(); commit('Tutto cancellato', true);
+    });
+    if (focusCats) setTimeout(() => $('#sCatsSec', root).scrollIntoView({ block: 'start', behavior: 'smooth' }), 120);
+  });
+}
+async function exportBackup() {
+  const name = `blocco-backup-${todayKey()}.json`;
+  const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
+  try {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Backup Blocco' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function importBackup(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const obj = JSON.parse(r.result);
+      if (!obj || !Array.isArray(obj.events) || !Array.isArray(obj.todos)) throw new Error('bad');
+      snapshot(); S = migrate(obj); S.seenWelcome = true; closeSheet(); commit('Backup importato', true);
+    } catch (e) { toast('Questo file non è un backup di Blocco'); }
+  };
+  r.readAsText(file);
+}
+function openWelcome() {
+  S.seenWelcome = true; save();
+  const tips = [
+    ['scuola', '<b>Tocca un orario</b> per aggiungere un blocco.'],
+    ['calcio', '<b>Scegli una categoria in alto</b> e trascina sulle ore: le blocchi al volo.'],
+    ['studio-business', '<b>Tieni premuto un blocco</b> per spostarlo, tira il bordo in basso per allungarlo. Aprilo per copiarlo negli altri giorni.'],
+    ['personale', '<b>Le cose da fare</b> stanno in basso: tienine premuta una e portala nel calendario dove hai spazio.']
+  ];
+  openSheet(`<div class="welcome">
+    <div class="mark" aria-hidden="true"><i style="--c:#5B8CFF;height:34px"></i><i style="--c:#F2B33D;height:22px"></i><i style="--c:#2ED47A;height:28px"></i></div>
+    <div class="sh-head" style="margin-top:0"><h3>Il tuo planner a blocchi</h3>${closeBtn}</div>
+    <p class="note">Organizzi la settimana a blocchi colorati e ci incastri dentro le cose da fare.</p>
+    <ul class="tips">${tips.map(([c, t]) => `<li><i style="--c:${cat(c).color}"></i><span>${t}</span></li>`).join('')}</ul>
+    ${standalone() || PREVIEW ? '' : `<div class="install">${installText()}</div>`}
+    <div class="actions"><button class="btn" id="wSchool">Imposta l'orario scolastico</button><button class="btn btn-primary" id="wGo">Inizia</button></div></div>`, root => {
+    $('#wGo', root).addEventListener('click', closeSheet);
+    $('#wSchool', root).addEventListener('click', () => {
+      openEventSheet({ date: mondayOf(todayKey()), start: 8 * 60, end: 13 * 60, cat: 'scuola', rep: true, days: [1, 2, 3, 4, 5] });
+    });
+  });
+}
+
+/* ---------- toast ---------- */
+let toastTimer = 0;
+function toast(msg, action) {
+  el.toast.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action.label)}</button>` : ''}`;
+  if (action) el.toast.querySelector('button').addEventListener('click', () => { hideToast(); action.fn(); });
+  el.toast.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, action ? 5000 : 2400);
+}
+function hideToast() { el.toast.classList.remove('show'); }
+
+/* ---------- navigation & controls ---------- */
+function setTodoOpen(v) { U.todoOpen = v; el.todo.classList.toggle('open', v); }
+function shift(dir) {
+  const step = U.view === 'week' ? 7 : U.view === '3day' ? 3 : 1;
+  U.sel = addDays(U.sel, dir * step); render();
+}
+const contentOff = () => el.heads.offsetHeight + 12;
+function centerMin() { return dayStartMin() + (el.scroll.scrollTop + el.scroll.clientHeight / 2 - contentOff()) / hourH() * 60; }
+function centerOn(min) { el.scroll.scrollTop = (min - dayStartMin()) / 60 * hourH() + contentOff() - el.scroll.clientHeight / 2; }
+function setView(v) { const m = centerMin(); U.view = v; S.prefs.view = v; save(); render(); centerOn(m); }
+function fitHour() {
+  const avail = el.scroll.clientHeight - el.heads.offsetHeight - 40;
+  return clamp(Math.floor(avail / (S.prefs.dayEnd - S.prefs.dayStart)), ZMIN, ZMAX);
+}
+function zoomTo(h, clientY) {
+  h = clamp(Math.round(h), ZMIN, ZMAX);
+  const old = hourH(); if (h === old) return;
+  const r = el.scroll.getBoundingClientRect();
+  const y = (clientY == null ? r.top + r.height / 2 : clientY) - r.top;
+  const min = (el.scroll.scrollTop + y - contentOff()) / old * 60;
+  S.prefs.zoom = { ...(S.prefs.zoom || {}), [U.view]: h };
+  relayoutGrid();
+  el.scroll.scrollTop = min / 60 * h + contentOff() - y;
+}
+function zoomStep(dir) {
+  const h = hourH(), fit = fitHour();
+  const levels = [...new Set([fit, 24, 30, 40, 56, 72, 96].filter(z => z >= fit))].sort((a, b) => a - b);
+  const next = dir > 0 ? levels.find(z => z > h + 1) : levels.slice().reverse().find(z => z < h - 1);
+  if (next == null) { toast(dir > 0 ? 'Zoom massimo' : 'Vedi già tutta la giornata'); return; }
+  zoomTo(next); save();
+}
+function goToday() {
+  U.sel = todayKey(); render(); scrollToTime(nowMin() - 60);
+}
+function newAtFreeSlot() {
+  const start = findFreeSlot(U.sel, 60);
+  openEventSheet({ date: U.sel, start, end: Math.min(start + 60, 1440) });
+}
+$('#prevBtn').addEventListener('click', () => shift(-1));
+$('#nextBtn').addEventListener('click', () => shift(1));
+el.goToday.addEventListener('click', goToday);
+$('#settingsBtn').addEventListener('click', () => openSettings(false));
+el.seg.addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) setView(b.dataset.view); });
+el.week.addEventListener('click', e => {
+  const b = e.target.closest('[data-day]'); if (!b) return;
+  if (Date.now() - U.dragEndAt < 300) return;
+  if (U.paste === 'day') return pasteDay(b.dataset.day);
+  U.sel = b.dataset.day; render();
+});
+el.heads.addEventListener('click', e => {
+  const b = e.target.closest('[data-day]'); if (!b) return;
+  if (U.paste === 'day') return pasteDay(b.dataset.day);
+  U.sel = b.dataset.day; setView('day');
+});
+el.palette.addEventListener('click', e => {
+  if (e.target.closest('[data-manage]')) return openSettings(true);
+  const b = e.target.closest('[data-arm]'); if (!b) return;
+  U.armed = U.armed === b.dataset.arm ? null : b.dataset.arm; U.paste = null; renderPalette();
+  if (U.armed && !isDesktop()) setTodoOpen(false);
+});
+el.armbar.addEventListener('click', e => { if (e.target.closest('#armDone')) { U.armed = null; U.paste = null; renderPalette(); } });
+el.fab.addEventListener('click', newAtFreeSlot);
+$('#zoomIn').addEventListener('click', () => zoomStep(1));
+$('#zoomOut').addEventListener('click', () => zoomStep(-1));
+el.band.addEventListener('click', () => openDaySheet(U.sel));
+el.scroll.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault(); zoomTo(hourH() * Math.exp(-clamp(e.deltaY, -40, 40) * 0.008), e.clientY);
+  clearTimeout(resizeT); resizeT = setTimeout(save, 300);
+}, { passive: false });
+(() => { // pinch with two fingers to zoom the hours
+  let p = null, rz = 0;
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  el.scroll.addEventListener('touchstart', e => {
+    if (e.touches.length !== 2) return;
+    if (drag) finishDrag(true);
+    p = { d0: dist(e.touches) || 1, h0: hourH(), y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+  }, { passive: true });
+  el.scroll.addEventListener('touchmove', e => {
+    if (!p || e.touches.length !== 2) return;
+    if (e.cancelable) e.preventDefault();
+    const h = p.h0 * dist(e.touches) / p.d0, y = p.y;
+    cancelAnimationFrame(rz); rz = requestAnimationFrame(() => zoomTo(h, y));
+  }, { passive: false });
+  const end = e => { if (p && e.touches.length < 2) { p = null; U.pinchEndAt = Date.now(); save(); } };
+  el.scroll.addEventListener('touchend', end); el.scroll.addEventListener('touchcancel', end);
+  document.addEventListener('gesturestart', e => e.preventDefault());
+})();
+$('#addTodo').addEventListener('click', e => { e.stopPropagation(); openTodoSheet(null); });
+const toggleTodo = e => { if (isDesktop() || e.target.closest('button')) return; setTodoOpen(!U.todoOpen); };
+el.todoGrab.addEventListener('click', toggleTodo);
+el.todoHead.addEventListener('click', toggleTodo);
+(() => { // swipe the panel head up/down
+  let y0 = null;
+  const s = e => { y0 = e.touches[0].clientY; };
+  const en = e => {
+    if (y0 == null) return;
+    const dy = e.changedTouches[0].clientY - y0; y0 = null;
+    if (drag || Date.now() - U.dragEndAt < 300) return;
+    if (dy < -30) setTodoOpen(true); else if (dy > 30) setTodoOpen(false);
+  };
+  [el.todoGrab, el.todoHead, el.chips].forEach(n => { n.addEventListener('touchstart', s, { passive: true }); n.addEventListener('touchend', en); });
+})();
+(() => { // horizontal swipes to change day/week
+  const swipe = (node) => {
+    let x0 = 0, y0 = 0, t0 = 0, multi = false;
+    node.addEventListener('touchstart', e => {
+      if (e.touches.length > 1) { multi = true; return; }
+      multi = false; const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; t0 = Date.now();
+    }, { passive: true });
+    node.addEventListener('touchend', e => {
+      if (multi) { if (!e.touches.length) multi = false; return; }
+      if (drag || U.armed || Date.now() - U.dragEndAt < 250 || Date.now() - U.pinchEndAt < 500) return;
+      const t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0;
+      if (Math.abs(dx) > 70 && Math.abs(dy) < 50 && Date.now() - t0 < 600) {
+        if (node === el.week) { U.sel = addDays(U.sel, dx < 0 ? 7 : -7); render(); } else shift(dx < 0 ? 1 : -1);
+      }
+    });
+  };
+  swipe(el.week); swipe(el.scroll);
+})();
+el.scroll.addEventListener('scroll', () => { U.lastScroll = Date.now(); }, { passive: true });
+el.list.addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('#quickIn'), v = inp.value.trim(); if (!v) return;
+  snapshot();
+  S.todos.unshift({ id: uid(), title: v, cat: U.lastTodoCat || 'studio-scuola', dur: 60, done: false, eventId: null, created: Date.now() });
+  inp.value = ''; commit(); $('#quickIn').focus();
+});
+el.list.addEventListener('click', e => {
+  const c = e.target.closest('[data-check]');
+  if (c) { const t = S.todos.find(x => x.id === c.dataset.check); if (!t) return; snapshot(); t.done = !t.done; commit(t.done ? 'Fatto, bravo' : 'Rimessa tra le cose da fare', true); return; }
+  if (e.target.closest('#clearDone')) {
+    snapshot(); S.todos = S.todos.filter(t => !t.done); commit('Lista pulita', true);
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (sheetOpen()) closeSheet(); else if (U.armed || U.paste) { U.armed = null; U.paste = null; renderPalette(); } else if (U.todoOpen) setTodoOpen(false); return; }
+  if (sheetOpen() || e.target.closest('input, textarea, select') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'ArrowLeft') shift(-1);
+  else if (e.key === 'ArrowRight') shift(1);
+  else if (e.key === 't') goToday();
+  else if (e.key === 'n') { e.preventDefault(); newAtFreeSlot(); }
+  else if (e.key === 'd') setView('day');
+  else if (e.key === 'w') setView('week');
+  else if (e.key === '+' || e.key === '=') zoomStep(1);
+  else if (e.key === '-') zoomStep(-1);
+});
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (!drag) renderGrid(); }, 150); });
+function tick() {
+  if (drag) return;
+  const t = todayKey();
+  if (t !== U.today) { if (U.sel === U.today) U.sel = t; U.today = t; render(); }
+  else renderNow();
+}
+setInterval(tick, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+
+/* ---------- boot ---------- */
+render();
+requestAnimationFrame(() => scrollToTime(nowMin() >= dayStartMin() && nowMin() < dayEndMin() ? nowMin() - 60 : 8 * 60));
+if (!S.seenWelcome) setTimeout(openWelcome, 350);
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+})();
+</script>
+</body>
+</html>
